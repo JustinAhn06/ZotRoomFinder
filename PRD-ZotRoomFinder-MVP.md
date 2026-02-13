@@ -1,4 +1,4 @@
-# Product Requirements Document: Zot Room Finder MVP
+# Product Requirements Document: Zot Room Finder
 
 ## Product Overview
 
@@ -9,7 +9,7 @@
 
 ## Who It's For
 
-### Primary User: Justin & UCI Students
+### Primary User: UCI Students
 A UCI student who needs a quiet study space but is tired of checking Langson, Science Library, and Mesa Study Center websites one by one.
 
 **Their Current Pain:**
@@ -23,7 +23,7 @@ A UCI student who needs a quiet study space but is tired of checking Langson, Sc
 - A fast way to get from "searching" to "booked."
 
 ### Example User Story
-"Meet Justin, a UCI student with a midterm in two hours. He needs a room in the Science Library, but it's full. Usually, he’d have to manually navigate to the Langson site and then Mesa. Instead, he opens **Zot Room Finder**, enters '2:00 PM to 4:00 PM,' sees a list of available rooms across campus, and clicks a link to book his spot instantly."
+"Meet Jayanth, a UCI student with a midterm in two hours. He needs a room in the Science Library, but it's full. Usually, he’d have to manually navigate to the Langson site and then Mesa. Instead, he opens **Zot Room Finder**, enters '2:00 PM to 4:00 PM,' sees a list of available rooms across campus, and clicks a link to book his spot instantly."
 
 ## The Problem We're Solving
 
