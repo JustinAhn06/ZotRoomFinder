@@ -1,0 +1,9 @@
+# Dependencies
+node_modules/
+zot-room-finder/node_modules/
+zot-room-finder/.next/
+
+# Hide AI Configuration
+.github/
+.cursorrules
+copilot-instructions.md
