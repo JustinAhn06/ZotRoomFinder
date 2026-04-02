@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, ChevronDown, ChevronUp, Loader2, MapPin, Users, Zap } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp, Loader2, MapPin, Users } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 
 interface Room {
@@ -63,9 +63,7 @@ function validateInputs(date: string, startTime: string): string | null {
   }
 
   const [, sm] = startTime.split(':').map(Number);
-  if (sm !== 0 && sm !== 30) {
-    return `Start time must be on a 30-minute interval.`;
-  }
+  if (sm !== 0 && sm !== 30) return 'Start time must be on a 30-minute interval.';
 
   return null;
 }
@@ -89,15 +87,13 @@ export default function SearchPage() {
   const [locationFilter, setLocationFilter] = useState<string>('all');
   const [techOnly, setTechOnly] = useState<boolean>(false);
 
+  // Results display
+  const [showBooked, setShowBooked] = useState<boolean>(false);
+
   const endTime = addMinutesToTime(startTime, durationMinutes);
 
-  const runSearch = async (overrideDate?: string, overrideStart?: string, overrideDuration?: number) => {
-    const d = overrideDate ?? date;
-    const s = overrideStart ?? startTime;
-    const dur = overrideDuration ?? durationMinutes;
-    const e = addMinutesToTime(s, dur);
-
-    const validationError = validateInputs(d, s);
+  const handleSearch = async () => {
+    const validationError = validateInputs(date, startTime);
     if (validationError) {
       setError(validationError);
       setHasSearched(true);
@@ -113,7 +109,7 @@ export default function SearchPage() {
       const response = await fetch('/api/rooms/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: d, startTime: s, endTime: e }),
+        body: JSON.stringify({ date, startTime, endTime }),
       });
 
       if (!response.ok) throw new Error('Failed to fetch rooms');
@@ -132,22 +128,16 @@ export default function SearchPage() {
     }
   };
 
-  const handleFindNow = () => {
-    const nowDate = format(new Date(), 'yyyy-MM-dd');
-    const nowStart = getEarliestStartTime();
-    setDate(nowDate);
-    setStartTime(nowStart);
-    setDurationMinutes(60);
-    runSearch(nowDate, nowStart, 60);
-  };
-
-  // Apply client-side filters
   const filteredRooms = rooms.filter((room) => {
     if (locationFilter !== 'all' && !room.location.toLowerCase().includes(locationFilter)) return false;
     if ((room.capacity ?? 0) < minCapacity) return false;
     if (techOnly && !room.name.toLowerCase().includes('tech')) return false;
     return true;
   });
+
+  const availableRooms = filteredRooms.filter((r) => r.isAvailable);
+  const bookedRooms = filteredRooms.filter((r) => !r.isAvailable);
+  const displayedRooms = showBooked ? filteredRooms : availableRooms;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -168,25 +158,8 @@ export default function SearchPage() {
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
 
-          {/* Find Me a Room Now */}
-          <Button
-            onClick={handleFindNow}
-            disabled={loading}
-            className="w-full bg-[#FFD200] hover:bg-[#e6be00] text-[#1a1a1a] font-semibold flex items-center justify-center gap-2"
-          >
-            <Zap className="w-4 h-4" />
-            Find me a room now
-          </Button>
-
-          <div className="flex items-center gap-3 text-sm text-gray-400">
-            <div className="flex-1 h-px bg-gray-200" />
-            or search manually
-            <div className="flex-1 h-px bg-gray-200" />
-          </div>
-
           {/* Main inputs */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Date */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
               <Input
@@ -199,7 +172,6 @@ export default function SearchPage() {
               />
             </div>
 
-            {/* Start Time */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Start Time</label>
               <Input
@@ -211,7 +183,6 @@ export default function SearchPage() {
               />
             </div>
 
-            {/* Duration */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Duration: {formatDuration(durationMinutes)}
@@ -247,7 +218,6 @@ export default function SearchPage() {
           {/* Advanced panel */}
           {showAdvanced && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-gray-100">
-              {/* Location */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
                 <select
@@ -262,7 +232,6 @@ export default function SearchPage() {
                 </select>
               </div>
 
-              {/* Min Capacity */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Min Capacity: {minCapacity}
@@ -281,7 +250,6 @@ export default function SearchPage() {
                 </div>
               </div>
 
-              {/* Tech Enhanced */}
               <div className="flex items-center gap-3 pt-6">
                 <input
                   type="checkbox"
@@ -299,7 +267,7 @@ export default function SearchPage() {
           )}
 
           <Button
-            onClick={() => runSearch()}
+            onClick={handleSearch}
             disabled={loading}
             className="w-full bg-[#0064A4] hover:bg-[#004A7A] text-white"
           >
@@ -326,49 +294,68 @@ export default function SearchPage() {
                 {error}
               </div>
             ) : filteredRooms.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredRooms.map((room) => (
-                  <div
-                    key={room.id}
-                    className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition"
-                  >
-                    <h3 className="text-lg font-semibold text-gray-900">{room.name}</h3>
+              <>
+                {/* Summary + toggle */}
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-sm text-gray-600">
+                    <span className="font-semibold text-green-700">{availableRooms.length} available</span>
+                    <span className="text-gray-400 mx-2">·</span>
+                    <span className="text-gray-500">{bookedRooms.length} booked</span>
+                  </p>
+                  {bookedRooms.length > 0 && (
+                    <button
+                      onClick={() => setShowBooked((v) => !v)}
+                      className="text-sm text-gray-500 hover:text-gray-700 underline transition"
+                    >
+                      {showBooked ? 'Hide booked' : 'Show booked'}
+                    </button>
+                  )}
+                </div>
 
-                    <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
-                      <MapPin className="w-4 h-4" />
-                      {room.location}
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {displayedRooms.map((room) => (
+                    <div
+                      key={room.id}
+                      className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition"
+                    >
+                      <h3 className="text-lg font-semibold text-gray-900">{room.name}</h3>
 
-                    <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
-                      <Users className="w-4 h-4" />
-                      Capacity: {room.capacity}
-                    </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
+                        <MapPin className="w-4 h-4" />
+                        {room.location}
+                      </div>
 
-                    <div className="mt-4 flex items-center justify-between">
-                      <span
-                        className={`text-sm font-medium px-3 py-1 rounded-full ${
-                          room.isAvailable
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-red-100 text-red-700'
-                        }`}
-                      >
-                        {room.isAvailable ? 'Available' : 'Booked'}
-                      </span>
+                      <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                        <Users className="w-4 h-4" />
+                        Capacity: {room.capacity}
+                      </div>
 
-                      {room.isAvailable && (
-                        <a
-                          href={room.bookingUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[#0064A4] hover:underline text-sm font-medium"
+                      <div className="mt-4 flex items-center justify-between">
+                        <span
+                          className={`text-sm font-medium px-3 py-1 rounded-full ${
+                            room.isAvailable
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}
                         >
-                          Book Now →
-                        </a>
-                      )}
+                          {room.isAvailable ? 'Available' : 'Booked'}
+                        </span>
+
+                        {room.isAvailable && (
+                          <a
+                            href={room.bookingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#0064A4] hover:underline text-sm font-medium"
+                          >
+                            Book Now →
+                          </a>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </>
             ) : (
               <div className="text-center py-12">
                 <p className="text-gray-600">
