@@ -13,7 +13,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    if (startTime >= endTime) {
+    const toMinutes = (t: string) => {
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + m;
+    };
+    const startMinutes = toMinutes(startTime);
+    const endMinutes = endTime === '00:00' ? 1440 : toMinutes(endTime);
+    if (startMinutes >= endMinutes) {
       return NextResponse.json(
         { error: 'Start time must be before end time' },
         { status: 400 }

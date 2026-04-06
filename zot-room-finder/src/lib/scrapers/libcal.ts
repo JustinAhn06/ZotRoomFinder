@@ -154,6 +154,11 @@ async function fetchAvailability(
   return data.slots ?? [];
 }
 
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
+
 // A room is available if every 30-min slot in [startTime, endTime) has no className
 function isAvailableForWindow(
   slots: AvailabilitySlot[],
@@ -162,12 +167,17 @@ function isAvailableForWindow(
   startTime: string,
   endTime: string
 ): boolean {
-  const windowStart = `${date} ${startTime}:00`;
-  const windowEnd = `${date} ${endTime}:00`;
+  const startMinutes = timeToMinutes(startTime);
+  // midnight (00:00) as end means 24:00 — treat it as 1440
+  const endMinutes = endTime === '00:00' ? 1440 : timeToMinutes(endTime);
 
-  const roomSlots = slots.filter(
-    (s) => s.itemId === eid && s.start >= windowStart && s.start < windowEnd
-  );
+  const roomSlots = slots.filter((s) => {
+    if (s.itemId !== eid) return false;
+    const [slotDate, slotTime] = s.start.split(' ');
+    if (slotDate !== date) return false;
+    const slotMinutes = timeToMinutes(slotTime);
+    return slotMinutes >= startMinutes && slotMinutes < endMinutes;
+  });
 
   // No slots means the room isn't offered in that window (closed, etc.)
   if (roomSlots.length === 0) return false;
