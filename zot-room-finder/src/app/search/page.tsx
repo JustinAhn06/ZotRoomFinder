@@ -1,10 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { ArrowLeft, ChevronDown, ChevronUp, Loader2, MapPin, Users } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 
 interface Room {
@@ -15,6 +12,21 @@ interface Room {
   isAvailable: boolean;
   timeSlot?: string;
   bookingUrl: string;
+}
+
+const LIB_CONFIG = {
+  langson: { stripe: '#F4C6A8', pill: '#F4C6A8', pillText: '#7a4f30', label: '📚 Langson' },
+  science: { stripe: '#C9B8D8', pill: '#C9B8D8', pillText: '#4a3568', label: '🔬 Science' },
+  gateway: { stripe: '#A8C5A0', pill: '#A8C5A0', pillText: '#2d5a35', label: '🏫 Gateway' },
+} as const;
+
+type LibKey = keyof typeof LIB_CONFIG;
+
+function getLibKey(location: string): LibKey {
+  const loc = location.toLowerCase();
+  if (loc.includes('langson')) return 'langson';
+  if (loc.includes('science')) return 'science';
+  return 'gateway';
 }
 
 function formatDuration(minutes: number): string {
@@ -68,8 +80,29 @@ function validateInputs(date: string, startTime: string): string | null {
   return null;
 }
 
+const inputStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-nunito), sans-serif',
+  fontSize: '0.95rem',
+  background: '#fffdf5',
+  border: '1.5px solid #e8dfc8',
+  borderRadius: 14,
+  padding: '10px 14px',
+  width: '100%',
+  color: '#2D2D2D',
+  outline: 'none',
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontWeight: 700,
+  fontSize: '0.78rem',
+  color: '#aaa',
+  marginBottom: 6,
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+};
+
 export default function SearchPage() {
-  const router = useRouter();
   const today = format(new Date(), 'yyyy-MM-dd');
   const maxDate = format(addDays(new Date(), 3), 'yyyy-MM-dd');
 
@@ -81,16 +114,24 @@ export default function SearchPage() {
   const [hasSearched, setHasSearched] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
 
-  // Advanced filters
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [minCapacity, setMinCapacity] = useState<number>(1);
   const [locationFilter, setLocationFilter] = useState<string>('all');
   const [techOnly, setTechOnly] = useState<boolean>(false);
 
-  // Results display
   const [showBooked, setShowBooked] = useState<boolean>(false);
+  const [pencilKey, setPencilKey] = useState<number>(0);
 
   const endTime = addMinutesToTime(startTime, durationMinutes);
+
+  // Generate 30-min time options 7am–midnight
+  const timeOptions: { val: string; label: string }[] = [];
+  for (let h = 7; h < 24; h++) {
+    for (let m = 0; m < 60; m += 30) {
+      const val = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      timeOptions.push({ val, label: formatDisplayTime(val) });
+    }
+  }
 
   const handleSearch = async () => {
     const validationError = validateInputs(date, startTime);
@@ -139,57 +180,105 @@ export default function SearchPage() {
   const bookedRooms = filteredRooms.filter((r) => !r.isAvailable);
   const displayedRooms = showBooked ? filteredRooms : availableRooms;
 
+  const libTabs = [
+    { key: 'all', label: '🗺️ All' },
+    { key: 'langson', label: LIB_CONFIG.langson.label },
+    { key: 'science', label: LIB_CONFIG.science.label },
+    { key: 'gateway', label: LIB_CONFIG.gateway.label },
+  ];
+
+  function handleTabClick(key: string) {
+    setLocationFilter(key);
+    setPencilKey((k) => k + 1);
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div style={{ minHeight: '100vh', background: '#FEFAE0' }}>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
-          <button
-            onClick={() => router.back()}
-            className="p-2 hover:bg-gray-100 rounded-lg transition"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
-          </button>
-          <h1 className="text-2xl font-bold text-[#0064A4]">Find a Room</h1>
+      <header
+        className="sticky top-0 z-40"
+        style={{ background: '#fffdf5', borderBottom: '1.5px solid #ede8d8', padding: '14px 24px' }}
+      >
+        <div
+          className="max-w-5xl mx-auto flex items-center justify-between gap-4"
+        >
+          <div className="flex items-center gap-3">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{ width: 32, height: 32, background: '#E8A598', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+              >
+                <span className="font-fraunces font-bold text-white" style={{ fontSize: '1rem' }}>Z</span>
+              </div>
+              <span
+                className="font-fraunces italic font-bold"
+                style={{ fontSize: '1.25rem', color: '#2D2D2D' }}
+              >
+                Zot Room Finder
+              </span>
+            </div>
+          </div>
+          {hasSearched && !error && (
+            <div style={{ fontSize: '0.82rem', color: '#aaa', fontWeight: 600, display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span>📅 {new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+              <span>·</span>
+              <span>⏰ {formatDisplayTime(startTime)}–{formatDisplayTime(endTime)}</span>
+            </div>
+          )}
         </div>
       </header>
 
-      {/* Search Form */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
-
-          {/* Main inputs */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="max-w-5xl mx-auto" style={{ padding: '28px 20px 60px' }}>
+        {/* Search form card */}
+        <div
+          style={{
+            background: '#fffdf5',
+            borderRadius: 28,
+            border: '1.5px solid #ede8d8',
+            padding: '28px',
+            boxShadow: '0 8px 32px rgba(45,45,45,0.07)',
+            marginBottom: 32,
+          }}
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 20 }}>
+            {/* Date */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-              <Input
+              <label style={labelStyle}>Date</label>
+              <input
                 type="date"
                 value={date}
                 min={today}
                 max={maxDate}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full"
+                style={inputStyle}
+                onFocus={(e) => (e.currentTarget.style.borderColor = '#E8A598')}
+                onBlur={(e) => (e.currentTarget.style.borderColor = '#e8dfc8')}
               />
             </div>
 
+            {/* Start time */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Start Time</label>
-              <Input
-                type="time"
+              <label style={labelStyle}>Start Time</label>
+              <select
                 value={startTime}
-                step={1800}
                 onChange={(e) => setStartTime(e.target.value)}
-                className="w-full"
-              />
+                style={inputStyle}
+                onFocus={(e) => (e.currentTarget.style.borderColor = '#E8A598')}
+                onBlur={(e) => (e.currentTarget.style.borderColor = '#e8dfc8')}
+              >
+                {timeOptions.map((o) => (
+                  <option key={o.val} value={o.val}>{o.label}</option>
+                ))}
+              </select>
             </div>
 
+            {/* Duration */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Duration: {formatDuration(durationMinutes)}
-                <span className="ml-2 text-[#0064A4] font-normal">
-                  → ends {formatDisplayTime(endTime)}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <label style={labelStyle}>Duration</label>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#E8A598' }}>
+                  {formatDuration(durationMinutes)} · ends {formatDisplayTime(endTime)}
                 </span>
-              </label>
+              </div>
               <input
                 type="range"
                 min={30}
@@ -197,9 +286,9 @@ export default function SearchPage() {
                 step={30}
                 value={durationMinutes}
                 onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                className="w-full accent-[#0064A4] mt-2"
+                style={{ width: '100%', accentColor: '#E8A598', marginTop: 8 }}
               />
-              <div className="flex justify-between text-xs text-gray-400 mt-1">
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#ccc', marginTop: 4 }}>
                 <span>30 min</span>
                 <span>10 hr</span>
               </div>
@@ -209,7 +298,20 @@ export default function SearchPage() {
           {/* Advanced toggle */}
           <button
             onClick={() => setShowAdvanced((v) => !v)}
-            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-nunito), sans-serif',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              color: '#aaa',
+              padding: 0,
+              marginBottom: showAdvanced ? 16 : 0,
+            }}
           >
             {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             Advanced filters
@@ -217,155 +319,328 @@ export default function SearchPage() {
 
           {/* Advanced panel */}
           {showAdvanced && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-gray-100">
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                gap: 16,
+                paddingTop: 16,
+                borderTop: '1.5px solid #ede8d8',
+                marginBottom: 20,
+              }}
+            >
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
-                <select
-                  value={locationFilter}
-                  onChange={(e) => setLocationFilter(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0064A4]"
-                >
-                  <option value="all">All Libraries</option>
-                  <option value="langson">Langson Library</option>
-                  <option value="science">Science Library</option>
-                  <option value="gateway">Gateway Study Center</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Min Capacity: {minCapacity}
-                </label>
+                <label style={labelStyle}>Min Capacity: {minCapacity}</label>
                 <input
                   type="range"
                   min={1}
                   max={10}
                   value={minCapacity}
                   onChange={(e) => setMinCapacity(Number(e.target.value))}
-                  className="w-full accent-[#0064A4]"
+                  style={{ width: '100%', accentColor: '#E8A598' }}
                 />
-                <div className="flex justify-between text-xs text-gray-400 mt-1">
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#ccc', marginTop: 4 }}>
                   <span>1</span>
                   <span>10+</span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 pt-6">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 20 }}>
                 <input
                   type="checkbox"
                   id="tech-only"
                   checked={techOnly}
                   onChange={(e) => setTechOnly(e.target.checked)}
-                  className="w-4 h-4 accent-[#0064A4]"
+                  style={{ width: 16, height: 16, accentColor: '#E8A598', cursor: 'pointer' }}
                 />
-                <label htmlFor="tech-only" className="text-sm font-medium text-gray-700">
+                <label htmlFor="tech-only" style={{ fontSize: '0.88rem', fontWeight: 700, color: '#555', cursor: 'pointer' }}>
                   Tech-enhanced only
-                  <span className="block text-xs text-gray-400 font-normal">Projector / screen</span>
+                  <span style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', fontWeight: 500 }}>
+                    Projector / screen
+                  </span>
                 </label>
               </div>
             </div>
           )}
 
-          <Button
+          {error && (
+            <p style={{ color: '#d4857b', fontSize: '0.88rem', fontWeight: 600, marginBottom: 14, textAlign: 'center' }}>
+              {error}
+            </p>
+          )}
+
+          {/* Search button */}
+          <button
             onClick={handleSearch}
             disabled={loading}
-            className="w-full bg-[#0064A4] hover:bg-[#004A7A] text-white"
+            style={{
+              width: '100%',
+              background: loading ? '#f0ece4' : '#E8A598',
+              color: loading ? '#aaa' : '#fff',
+              border: 'none',
+              borderRadius: 18,
+              padding: '15px',
+              fontFamily: 'var(--font-nunito), sans-serif',
+              fontWeight: 800,
+              fontSize: '1rem',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              transition: 'background 0.18s',
+            }}
+            onMouseEnter={(e) => { if (!loading) e.currentTarget.style.background = '#d4857b'; }}
+            onMouseLeave={(e) => { if (!loading) e.currentTarget.style.background = '#E8A598'; }}
           >
             {loading ? (
               <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Searching...
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Searching…
               </>
             ) : (
-              'Search Available Rooms'
+              'Find My Spot 🔍'
             )}
-          </Button>
+          </button>
         </div>
 
         {/* Results */}
-        {hasSearched && (
-          <div className="mt-8">
-            {loading ? (
-              <div className="text-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-[#0064A4] mx-auto" />
-              </div>
-            ) : error ? (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-                {error}
-              </div>
-            ) : filteredRooms.length > 0 ? (
-              <>
-                {/* Summary + toggle */}
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-sm text-gray-600">
-                    <span className="font-semibold text-green-700">{availableRooms.length} available</span>
-                    <span className="text-gray-400 mx-2">·</span>
-                    <span className="text-gray-500">{bookedRooms.length} booked</span>
-                  </p>
-                  {bookedRooms.length > 0 && (
-                    <button
-                      onClick={() => setShowBooked((v) => !v)}
-                      className="text-sm text-gray-500 hover:text-gray-700 underline transition"
-                    >
-                      {showBooked ? 'Hide booked' : 'Show booked'}
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {displayedRooms.map((room) => (
-                    <div
-                      key={room.id}
-                      className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition"
-                    >
-                      <h3 className="text-lg font-semibold text-gray-900">{room.name}</h3>
-
-                      <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
-                        <MapPin className="w-4 h-4" />
-                        {room.location}
-                      </div>
-
-                      <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
-                        <Users className="w-4 h-4" />
-                        Capacity: {room.capacity}
-                      </div>
-
-                      <div className="mt-4 flex items-center justify-between">
-                        <span
-                          className={`text-sm font-medium px-3 py-1 rounded-full ${
-                            room.isAvailable
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}
-                        >
-                          {room.isAvailable ? 'Available' : 'Booked'}
-                        </span>
-
-                        {room.isAvailable && (
-                          <a
-                            href={room.bookingUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[#0064A4] hover:underline text-sm font-medium"
-                          >
-                            Book Now →
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-12">
-                <p className="text-gray-600">
-                  No rooms match your filters. Try adjusting your search.
+        {hasSearched && !loading && !error && filteredRooms.length > 0 && (
+          <>
+            {/* Summary row */}
+            <div
+              style={{ marginBottom: 20, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}
+            >
+              <div>
+                <h2
+                  className="font-fraunces italic font-bold"
+                  style={{ fontSize: '1.5rem', color: '#2D2D2D', marginBottom: 2 }}
+                >
+                  {availableRooms.length} rooms open for you
+                </h2>
+                <p style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 600 }}>
+                  {bookedRooms.length} booked ·{' '}
+                  <button
+                    onClick={() => setShowBooked((v) => !v)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#E8A598',
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-nunito), sans-serif',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      padding: 0,
+                    }}
+                  >
+                    {showBooked ? 'hide booked' : 'show booked'}
+                  </button>
                 </p>
               </div>
+              <button
+                onClick={() => { setHasSearched(false); setRooms([]); setError(''); }}
+                style={{
+                  background: '#E8A598',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 16,
+                  padding: '10px 20px',
+                  fontFamily: 'var(--font-nunito), sans-serif',
+                  fontWeight: 800,
+                  fontSize: '0.88rem',
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#d4857b')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = '#E8A598')}
+              >
+                New Search 🔍
+              </button>
+            </div>
+
+            {/* Library filter tabs */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+              {libTabs.map((tab) => {
+                const isActive = locationFilter === tab.key;
+                const cfg = tab.key !== 'all' ? LIB_CONFIG[tab.key as LibKey] : null;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => handleTabClick(tab.key)}
+                    style={{
+                      border: isActive ? 'none' : '1.5px solid #e8dfc8',
+                      background: isActive ? (cfg ? cfg.pill : '#E8A598') : '#fffdf5',
+                      color: isActive ? (cfg ? cfg.pillText : '#fff') : '#888',
+                      borderRadius: 99,
+                      padding: '9px 20px',
+                      fontFamily: 'var(--font-nunito), sans-serif',
+                      fontWeight: 800,
+                      fontSize: '0.88rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      transition: 'all 0.2s',
+                      boxShadow: isActive ? '0 4px 14px rgba(0,0,0,0.1)' : 'none',
+                      transform: isActive ? 'scale(1.04)' : 'scale(1)',
+                    }}
+                  >
+                    {isActive && (
+                      <span key={pencilKey} className="pencil-spin">📝</span>
+                    )}
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Cards grid */}
+            {displayedRooms.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: '#aaa' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔍</div>
+                <p style={{ fontWeight: 700, fontSize: '1rem' }}>No rooms match your filters</p>
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                  gap: 16,
+                }}
+              >
+                {displayedRooms.map((room, i) => {
+                  const libKey = getLibKey(room.location);
+                  const cfg = LIB_CONFIG[libKey];
+                  return (
+                    <a
+                      key={room.id}
+                      href={room.isAvailable ? room.bookingUrl : undefined}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="room-card card-spring"
+                      style={{
+                        background: '#fffdf5',
+                        borderRadius: 22,
+                        boxShadow: '0 4px 18px rgba(45,45,45,0.08)',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        textDecoration: 'none',
+                        color: 'inherit',
+                        animationDelay: `${Math.min(i * 40, 400)}ms`,
+                        cursor: room.isAvailable ? 'pointer' : 'default',
+                        pointerEvents: room.isAvailable ? 'auto' : 'none',
+                      }}
+                    >
+                      {/* Library stripe */}
+                      <div style={{ width: 7, background: cfg.stripe, flexShrink: 0 }} />
+
+                      <div style={{ padding: '18px 18px 16px', flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {/* Name + status */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                          <span style={{ fontWeight: 800, fontSize: '1rem', lineHeight: 1.3, color: '#2D2D2D' }}>
+                            {room.name}
+                          </span>
+                          {room.isAvailable ? (
+                            <span style={{
+                              background: '#d4edd6', color: '#2a7a35', borderRadius: 99, fontSize: '0.72rem',
+                              fontWeight: 700, padding: '3px 10px', whiteSpace: 'nowrap', flexShrink: 0,
+                              display: 'flex', alignItems: 'center', gap: 4,
+                            }}>
+                              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4caf50', display: 'inline-block' }} />
+                              Open!
+                            </span>
+                          ) : (
+                            <span style={{
+                              background: '#f0ece4', color: '#888', borderRadius: 99, fontSize: '0.72rem',
+                              fontWeight: 600, padding: '3px 10px', whiteSpace: 'nowrap', flexShrink: 0,
+                              textDecoration: 'line-through', textDecorationColor: '#bbb',
+                            }}>
+                              Booked
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Library pill */}
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center',
+                          background: cfg.pill + '55', color: cfg.pillText,
+                          borderRadius: 99, fontSize: '0.72rem', fontWeight: 700,
+                          padding: '2px 10px', width: 'fit-content',
+                        }}>
+                          {cfg.label}
+                        </span>
+
+                        {/* Capacity */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', color: '#666' }}>
+                          <span>👥</span>
+                          <span>{room.capacity === 1 ? 'Solo pod' : `${room.capacity} people`}</span>
+                        </div>
+
+                        {/* CTA */}
+                        {room.isAvailable && (
+                          <div style={{ marginTop: 4 }}>
+                            <span style={{
+                              background: '#E8A598', color: '#fff', borderRadius: 12,
+                              fontSize: '0.82rem', fontWeight: 700, padding: '6px 14px', display: 'inline-block',
+                            }}>
+                              View & Reserve →
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </a>
+                  );
+                })}
+              </div>
             )}
+          </>
+        )}
+
+        {/* Loading state */}
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 16 }}>
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  style={{
+                    display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                    background: '#E8A598',
+                    animation: 'dot 1.2s infinite',
+                    animationDelay: `${i * 0.2}s`,
+                  }}
+                />
+              ))}
+            </div>
+            <p style={{ color: '#aaa', fontWeight: 600 }}>Finding available rooms…</p>
+          </div>
+        )}
+
+        {/* Error state */}
+        {hasSearched && !loading && error && (
+          <div style={{
+            background: '#fff5f4', border: '1.5px solid #f4c6c0',
+            borderRadius: 16, padding: '16px 20px',
+            color: '#d4857b', fontWeight: 600, fontSize: '0.92rem',
+          }}>
+            {error}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {hasSearched && !loading && !error && filteredRooms.length === 0 && rooms.length > 0 && (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#aaa' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔍</div>
+            <p style={{ fontWeight: 700, fontSize: '1rem' }}>No rooms match your filters</p>
           </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes dot {
+          0%, 80%, 100% { opacity: 0.2; transform: scale(0.7); }
+          40% { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
     </div>
   );
 }
